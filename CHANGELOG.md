@@ -1,5 +1,30 @@
 # Changelog
 
+## v2.13.0 - 2026-08-14
+
+### 新增：五项增强审核/统计功能（均默认关闭）
+
+**1. 外链邀请撤回（`invite_link_recall_enabled`，默认关闭）**
+- 检测消息中的外部群邀请链接（QQ `qm.qq.com`/`jq.qq.com`/`qun.qq.com`/`pd.qq.com`、Telegram `t.me`、Discord `discord.gg`/`discord.com/invite`）及明文"群号+数字"特征，命中即撤回并记录；高置信文本特征，不经 LLM，可按群覆盖。
+
+**2. 链接安全检测（`url_safety_enabled`，默认关闭）**
+- 提取消息中全部 URL → 解析域名 → 与「内置短链域名（t.cn/dwz.cn/bit.ly 等）+ `url_risk_domains` 自定义域名 + `url_risk_patterns` 自定义正则」比对，命中即撤回并记录，用于拦截赌博/诈骗/引流链接，可按群覆盖。
+
+**3. GIF 帧级拆分审核（`gif_frame_audit_enabled`，默认关闭）**
+- 对 GIF 动图下载后用 OpenCV 逐帧拆解（帧数上限 `gif_max_frames`，默认 15），每帧做本地 OCR（复用多识别引擎）并把各帧文字并入审核正文，避免中间帧违规漏检；失败自动降级为整体图审核，可按群覆盖。
+
+**4. 语音消息审核（`voice_audit_enabled`，默认关闭）**
+- 收集语音消息段 → 下载音频 → 调通用 HTTP ASR 接口（`voice_asr_url`，POST multipart `audio` 到 `{url}/api/asr`，期望返回 JSON `{text}`）转文字并入审核正文；ASR 为外部自建服务（如 whisper/云 ASR），默认关闭，可按群覆盖。
+
+**5. 群活跃度统计（`group_activity_enabled`，默认关闭）**
+- 记录每群每条发言到 SQLite 新表 `group_activity`（storage.py 新增 `record_group_activity`/`get_group_activity_summary`/`get_group_activity_top_users`）；
+- 新增 `/群活跃度 [天数]` 命令：展示今日/近7天/近30天发言条数与活跃人数、活跃用户 Top10。
+
+**实现说明**
+- 新增 `advanced_audit.py`（`AdvancedAuditMixin`）与 `activity.py`（`ActivityMixin`），均接入 `Main` 继承链；
+- 审核管线（`moderation._handle_message`）：外链邀请/风险链接在 LLM 审核前以高置信特征直接撤回+记录；GIF 帧级与语音 ASR 的识别文本并入正文走统一审核；群活跃度在消息入口统一记录；
+- 全部功能默认关闭，纯增量，不影响既有审核行为。
+
 ## v2.12.0 - 2026-08-13
 
 ### 新增：按角色分权限完善 + 多协议适配升级（Telegram/Discord 群管操作）

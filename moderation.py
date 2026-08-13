@@ -1843,6 +1843,9 @@ class ModerationMixin(HashAuditMixin, LocalOCRMixin, VideoAuditMixin, ImageAudit
         user_id = self._try_get_sender_id(event)
         user_name = event.get_sender_name()
 
+        # v2.13.0 群活跃度统计（默认关闭）：记录所有群发言，供 /群活跃度 报表
+        self._record_activity(event, group_id, user_id)
+
         if self._pre_check_message(event, group_id, user_id):
             return
 
@@ -1953,6 +1956,29 @@ class ModerationMixin(HashAuditMixin, LocalOCRMixin, VideoAuditMixin, ImageAudit
             text = await self._apply_video_audit(
                 text, video_components, event, group_id
             )
+        # v2.13.0 高级审核（均默认关闭）：
+        # 外链邀请 / 风险链接为高置信文本特征 → 直接撤回+记录，不进 LLM 审核
+        link_violation = await self._detect_link_violation(text, group_id)
+        if link_violation:
+            async for item in self._handle_link_violation(
+                event, group_id, user_id, user_name, text, link_violation
+            ):
+                yield item
+            return
+        # GIF 帧级拆分审核（默认关闭）：逐帧本地 OCR 识别文字并入正文
+        if self._gif_frame_hit(group_id):
+            gif_components = self._collect_gif_components(event)
+            if gif_components:
+                text = await self._apply_gif_frame_audit(
+                    text, gif_components, event, group_id
+                )
+        # 语音消息审核（默认关闭）：ASR 转文字并入正文
+        if self._voice_hit(group_id):
+            voice_components = self._collect_voice_components(event)
+            if voice_components:
+                text = await self._apply_voice_audit(
+                    text, voice_components, event, group_id
+                )
         text = self._append_stream_rule_evidence(
             text, [inline_scan, forward_scan]
         )

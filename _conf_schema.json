@@ -1026,6 +1026,60 @@
         "type": "bool",
         "default": false,
         "hint": "受限平台（Telegram/Discord）文本命中违规时，除撤回外在执行禁言（时长取 moderation_ban_duration）。默认关闭：跨平台规则判定依赖本地关键词，置信度低于 QQ 全量审核，先仅撤回记录避免误伤"
+    },
+    "invite_link_recall_enabled": {
+        "description": "外链邀请撤回",
+        "type": "bool",
+        "default": false,
+        "hint": "检测消息中的外部群邀请链接（QQ qm.qq.com/jq.qq.com/qun.qq.com/pd.qq.com、Telegram t.me、Discord discord.gg 等）并自动撤回。高置信文本特征，不经 LLM。可按群覆盖"
+    },
+    "url_safety_enabled": {
+        "description": "链接安全检测",
+        "type": "bool",
+        "default": false,
+        "hint": "提取消息中的 URL，命中内置短链域名、url_risk_domains 自定义风险域名或 url_risk_patterns 正则时自动撤回。用于拦截赌博/诈骗/引流链接。可按群覆盖"
+    },
+    "url_risk_domains": {
+        "description": "自定义风险域名列表",
+        "type": "string",
+        "default": "",
+        "hint": "逗号分隔的域名，如 888.com,example-bet.com。命中即判定为风险链接并撤回（内置已含 t.cn/dwz.cn/bit.ly 等短链域名）。可按群覆盖"
+    },
+    "url_risk_patterns": {
+        "description": "自定义风险链接正则（每行一条）",
+        "type": "string",
+        "default": "",
+        "hint": "每行一个正则表达式（忽略大小写），命中即判定为风险链接并撤回。以 # 开头的行视为注释"
+    },
+    "gif_frame_audit_enabled": {
+        "description": "GIF 帧级拆分审核",
+        "type": "bool",
+        "default": false,
+        "hint": "对 GIF 动图下载后用 OpenCV 逐帧拆解，每帧做本地 OCR 识别文字并入审核，避免中间帧违规漏检。帧数上限取 gif_max_frames，失败自动降级为整体图审核。可按群覆盖"
+    },
+    "gif_max_frames": {
+        "description": "GIF 最大拆分帧数",
+        "type": "int",
+        "default": 15,
+        "hint": "GIF 帧级拆分审核最多识别的帧数（范围 1-60）。帧越多越全但越慢、越耗资源。可按群覆盖"
+    },
+    "voice_audit_enabled": {
+        "description": "语音消息审核",
+        "type": "bool",
+        "default": false,
+        "hint": "把语音消息下载后调用通用 HTTP ASR 接口（voice_asr_url）转文字，并入审核正文。需自行部署 ASR 服务，默认关闭。可按群覆盖"
+    },
+    "voice_asr_url": {
+        "description": "语音 ASR 接口地址",
+        "type": "string",
+        "default": "",
+        "hint": "通用 ASR 服务地址，插件会 POST {audio}（multipart，字段名 audio）到 {url}/api/asr，期望返回 JSON {text}。留空则语音审核不生效"
+    },
+    "group_activity_enabled": {
+        "description": "群活跃度统计",
+        "type": "bool",
+        "default": false,
+        "hint": "记录每群每条发言到 SQLite，供 /群活跃度 命令查询今日/近7天/近30天发言条数与活跃人数、活跃用户排行。默认关闭，开启后开始记录新消息"
     }
 
 }

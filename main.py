@@ -31,10 +31,12 @@ from .storage import SQLiteStorage
 from .utils import UtilitiesMixin
 from .web import WebMixin
 from .ad_backend import AdBackendMixin
+from .activity import ActivityMixin
+from .advanced_audit import AdvancedAuditMixin
 
 
 @register(PLUGIN_NAME, "zhaisir", "QQ群智能守护者 - AI审核+群管工具集", PLUGIN_VERSION, "https://github.com/zcj-ui/astrbot_plugin_group_guardian")
-class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, CardMonitorMixin, LexiconLearnMixin, SchedulerMixin, RemoteMixin, LlmToolsMixin, AdBackendMixin, WebMixin, PlatformOpsMixin, OneBotMixin, UtilitiesMixin, Star):
+class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, CardMonitorMixin, LexiconLearnMixin, SchedulerMixin, RemoteMixin, LlmToolsMixin, AdvancedAuditMixin, ActivityMixin, AdBackendMixin, WebMixin, PlatformOpsMixin, OneBotMixin, UtilitiesMixin, Star):
     """插件主类。所有 AstrBot 装饰器注册入口，业务逻辑委托给 mixin 模块。"""
 
     def __init__(self, context: Context, config: AstrBotConfig = None):
@@ -254,6 +256,12 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, CardMo
     async def group_stats(self, event: AstrMessageEvent):
         '''显示群内今日消息统计和活跃排行'''
         async for item in CommandsMixin.group_stats(self, event):
+            yield item
+
+    @filter.command("群活跃度")
+    async def group_activity(self, event: AstrMessageEvent):
+        '''群活跃度统计：日活/周活/月活 + 活跃用户排行'''
+        async for item in ActivityMixin.cmd_group_activity(self, event):
             yield item
 
     # 管理命令注册区：权限校验由插件内部 _is_admin / _is_plugin_admin 统一处理，
