@@ -7,6 +7,7 @@ import time
 from typing import Dict, Optional, Tuple
 
 from astrbot.api import logger
+from astrbot.api.event import AstrMessageEvent
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 
 LLM_MESSAGE_MAX_CHARS = 6000
