@@ -15,6 +15,7 @@
 import asyncio
 import base64
 import sys
+import time
 
 from astrbot.api import logger
 
@@ -32,6 +33,9 @@ class LocalOCRMixin:
         self._local_ocr_engine = None
         self._local_ocr_available = RapidOCR is not None
         self._local_ocr_lock = asyncio.Lock()
+        self._ocr_repair_lock = asyncio.Lock()
+        self._last_ocr_repair_ts = 0.0
+        self._ocr_repair_cooldown = 600  # 自我修复冷却（秒），避免频繁重装
 
     def _ad_engine(self, group_id: str = None) -> str:
         """当前广告识别引擎（local/umi/cloud/llm/auto），非法值回落 local。"""
@@ -46,8 +50,9 @@ class LocalOCRMixin:
     # 模型按需安装（zip 不带模型，开启 local 引擎时才下载，关闭不卸载）
     # ============================================================
 
+    # ============================================================
     async def _ensure_local_ocr(self) -> bool:
-        """确保本地 RapidOCR 可用：未安装且允许自动安装时 pip 安装（下载模型）。"""
+        """确保本地 RapidOCR 可用：未安装时自动安装（含详细日志），失败自动重试。"""
         global RapidOCR
         if RapidOCR is not None:
             return True
@@ -57,31 +62,55 @@ class LocalOCRMixin:
         except Exception:
             auto = True
         if not auto:
-            logger.warning("[GroupMgr] 本地OCR未安装且未开启自动安装，本地识别将跳过")
+            logger.warning("[GroupMgr] 本地OCR未安装且未开启自动安装(local_ocr_auto_install)，本地识别将跳过")
             return False
-        logger.info(
-            "[GroupMgr] 首次启用本地OCR，自动安装 rapidocr_onnxruntime（含模型约30MB）..."
-        )
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                sys.executable, "-m", "pip", "install", "rapidocr_onnxruntime",
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            await asyncio.wait_for(proc.communicate(), timeout=300)
-            try:
-                from rapidocr_onnxruntime import RapidOCR  # noqa: F401
-            except ImportError:
-                logger.warning("[GroupMgr] 安装后仍未找到 RapidOCR，请手动 pip install rapidocr_onnxruntime")
-                return False
-            self._local_ocr_available = RapidOCR is not None
-            logger.info("[GroupMgr] 本地OCR安装完成（模型已下载，关闭引擎不会卸载）")
-            return self._local_ocr_available
-        except Exception as exc:
-            logger.warning(f"[GroupMgr] 安装本地OCR失败: {exc}")
+        async with self._ocr_repair_lock:
+            logger.info("[GroupMgr] [安装日志] 本地OCR引擎不可用，开始自动安装 rapidocr_onnxruntime（含模型约30MB，请耐心等待）...")
+            for attempt in (1, 2):
+                try:
+                    logger.info(f"[GroupMgr] [安装日志] 第{attempt}次执行: pip install rapidocr_onnxruntime")
+                    proc = await asyncio.create_subprocess_exec(
+                        sys.executable, "-m", "pip", "install", "rapidocr_onnxruntime",
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.STDOUT,
+                    )
+
+                    async def _pump_output():
+                        assert proc.stdout is not None
+                        while True:
+                            raw = await proc.stdout.readline()
+                            if not raw:
+                                break
+                            text = raw.decode("utf-8", "ignore").strip()
+                            if text:
+                                logger.info(f"[GroupMgr] [pip] {text[:200]}")
+
+                    pump = asyncio.create_task(_pump_output())
+                    try:
+                        await asyncio.wait_for(proc.wait(), timeout=300)
+                    finally:
+                        pump.cancel()
+                        try:
+                            await pump
+                        except Exception:
+                            pass
+                    if proc.returncode != 0:
+                        logger.warning(f"[GroupMgr] [安装日志] pip 安装退出码={proc.returncode}，尝试重试")
+                        continue
+                    try:
+                        from rapidocr_onnxruntime import RapidOCR  # noqa: F401
+                    except ImportError:
+                        logger.warning("[GroupMgr] [安装日志] 安装完成但 import 失败，尝试重试")
+                        continue
+                    self._local_ocr_available = RapidOCR is not None
+                    logger.info("[GroupMgr] [安装日志] 本地OCR安装成功（模型已下载；关闭引擎不会卸载模型）")
+                    return True
+                except Exception as exc:
+                    logger.warning(f"[GroupMgr] [安装日志] 安装异常: {exc}")
+            logger.warning("[GroupMgr] [安装日志] 本地OCR安装失败，请手动执行: pip install rapidocr_onnxruntime")
             return False
 
-    # ============================================================
+
     # 本地 RapidOCR
     # ============================================================
 
@@ -124,12 +153,22 @@ class LocalOCRMixin:
     # ============================================================
 
     async def _umi_ocr_text(self, data: bytes) -> str:
-        """调用 Umi-OCR 的 HTTP API 识别图片文字（默认 http://127.0.0.1:1224）。"""
+        """调用 Umi-OCR 的 HTTP API 识别图片文字；失败自动修复重试一次。"""
         if not data:
             return ""
         url = self._cfg_str("umi_ocr_url", "http://127.0.0.1:1224").strip().rstrip("/")
         if not url:
             return ""
+        text = await self._umi_ocr_call(data, url)
+        if text:
+            return text
+        # 自我修复：Umi-OCR 连不上时检查/提示，冷却内重试一次
+        if await self._repair_ad_engine("umi"):
+            text = await self._umi_ocr_call(data, url)
+        return text
+
+    async def _umi_ocr_call(self, data: bytes, url: str) -> str:
+        """实际调用 Umi-OCR /api/ocr。"""
         try:
             import aiohttp
 
@@ -142,6 +181,7 @@ class LocalOCRMixin:
                     timeout=aiohttp.ClientTimeout(total=30),
                 ) as resp:
                     if resp.status != 200:
+                        logger.warning(f"[GroupMgr] Umi-OCR 返回状态 {resp.status}")
                         return ""
                     result = await resp.json()
             data_obj = result.get("data") or {}
@@ -156,8 +196,9 @@ class LocalOCRMixin:
                     lines.append(item)
             return " ".join(lines).strip()
         except Exception as exc:
-            logger.debug(f"[GroupMgr] Umi-OCR 调用失败: {exc}")
+            logger.warning(f"[GroupMgr] Umi-OCR 调用失败: {exc}")
             return ""
+
 
     # ============================================================
     # 第三方云广告检测 API（如阿里云内容安全）
@@ -236,3 +277,64 @@ class LocalOCRMixin:
     def _engine_cloud_only(self, group_id: str = None) -> bool:
         """当前引擎是否纯云 API（无本地 OCR 文字）。"""
         return self._ad_engine(group_id) == "cloud"
+
+    # ============================================================
+    # 自我修复（模型链接不上时自动检测并尝试恢复，带冷却）
+    # ============================================================
+
+    async def _check_umi_ocr(self, url: str) -> bool:
+        """测试 Umi-OCR HTTP 服务是否可达。"""
+        if not url:
+            return False
+        try:
+            import aiohttp
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{url}/", timeout=aiohttp.ClientTimeout(total=5)
+                ) as resp:
+                    return resp.status < 500
+        except Exception:
+            return False
+
+    async def _repair_ad_engine(self, engine: str = None, group_id: str = None) -> bool:
+        """自我修复：检测并尝试恢复指定识别引擎（带冷却，默认 10 分钟）。
+
+        - local：RapidOCR 缺失/加载失败 → 自动重装（含详细日志）；
+        - umi：Umi-OCR 连不上 → 探测服务并给出修复提示；
+        - cloud：外部服务，检查配置并提示；
+        返回 True 表示引擎已恢复可用。
+        """
+        engine = (engine or self._ad_engine(group_id)).strip().lower()
+        now = time.time()
+        if now - self._last_ocr_repair_ts < self._ocr_repair_cooldown:
+            logger.debug("[GroupMgr] [自我修复] 仍在冷却期，跳过本次修复")
+            return False
+        self._last_ocr_repair_ts = now
+        if engine == "local":
+            ok = await self._ensure_local_ocr()
+            if ok:
+                logger.info("[GroupMgr] [自我修复] 本地OCR已恢复可用")
+            return ok
+        if engine == "umi":
+            url = self._cfg_str("umi_ocr_url", "http://127.0.0.1:1224").strip().rstrip("/")
+            ok = await self._check_umi_ocr(url)
+            if ok:
+                logger.info("[GroupMgr] [自我修复] Umi-OCR 服务已可达")
+            else:
+                logger.warning(
+                    f"[GroupMgr] [自我修复] Umi-OCR 连接失败({url})。"
+                    "请确认已启动 Umi-OCR 并开启「HTTP服务」（默认端口1224）"
+                )
+            return ok
+        if engine == "cloud":
+            url = self._cfg_str("cloud_audit_url", "").strip()
+            if not url:
+                logger.warning("[GroupMgr] [自我修复] 未配置 cloud_audit_url，云广告检测不可用，请检查配置")
+            else:
+                logger.info(
+                    f"[GroupMgr] [自我修复] 云API地址已配置({url})，"
+                    "若持续失败请检查 API Key 与服务器网络"
+                )
+            return bool(url)
+        return False
