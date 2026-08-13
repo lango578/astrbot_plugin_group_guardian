@@ -48,6 +48,7 @@ class LocalOCRMixin:
 
     async def _ensure_local_ocr(self) -> bool:
         """确保本地 RapidOCR 可用：未安装且允许自动安装时 pip 安装（下载模型）。"""
+        global RapidOCR
         if RapidOCR is not None:
             return True
         auto = True
@@ -61,7 +62,6 @@ class LocalOCRMixin:
         logger.info(
             "[GroupMgr] 首次启用本地OCR，自动安装 rapidocr_onnxruntime（含模型约30MB）..."
         )
-        global RapidOCR
         try:
             proc = await asyncio.create_subprocess_exec(
                 sys.executable, "-m", "pip", "install", "rapidocr_onnxruntime",
