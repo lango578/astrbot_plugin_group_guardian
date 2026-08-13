@@ -191,6 +191,25 @@
         "default": false,
         "hint": "开启后 /禁言 /踢人 /设置名片 等群管指令要求操作者本群角色为群主或群管理员，即使是插件全局管理员在其非群管的群里也不能通过指令操作（防止跨群乱踢人）。查询指令与 WebUI 远程执行不受此限制"
     },
+    "role_high_require": {
+        "description": "高危群管操作所需角色",
+        "type": "string",
+        "default": "admin",
+        "hint": "设置/取消管理员、全体禁言、修改群名、设置头衔等操作的发起者最低角色：admin=群管理员及以上（默认，与原行为一致），owner=仅群主或插件管理员，plugin_admin=仅插件管理员。可按群覆盖"
+    },
+    "role_kick_require": {
+        "description": "踢人所需角色",
+        "type": "string",
+        "default": "admin",
+        "hint": "/踢人 指令与 LLM 踢人工具的操作者最低角色：admin=群管理员及以上（默认），owner=仅群主或插件管理员，plugin_admin=仅插件管理员。可按群覆盖"
+    },
+    "role_ban_require": {
+        "description": "禁言/解禁所需角色",
+        "type": "string",
+        "default": "admin",
+        "hint": "/禁言 /解禁 指令的操作者最低角色：admin=群管理员及以上（默认，与原行为一致），owner=仅群主或插件管理员，plugin_admin=仅插件管理员。可按群覆盖"
+    },
+
     "kick_recall_enabled": {
         "description": "踢人时自动撤回该成员最近消息",
         "type": "bool",
@@ -988,5 +1007,25 @@
         "type": "string",
         "default": "",
         "hint": "访问后台需携带的令牌（URL 加 ?token=xxx 或请求头 X-Token）。留空则无需鉴权，仅建议在内网使用"
+    },
+    "multi_protocol_enabled": {
+        "description": "多协议适配开关",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后支持 Telegram/Discord/QQ官方等非 OneBot 平台的「受限模式」审核：文本关键词（脏话/广告）检测 + 撤回 + 违规记录，群主/群管理员按角色豁免。Telegram/Discord 额外支持禁言/解禁/踢人（平台路由实现，需群内操作开关）。图片/视频/转发审核、OCR/LLM 与任免管理员仍仅 AIOCQHTTP(QQ) 可用。默认关闭，仅 QQ 全量工作"
+    },
+    "multi_protocol_platforms": {
+        "description": "受限模式启用的平台列表",
+        "type": "list",
+        "default": ["telegram", "discord"],
+        "invisible": true,
+        "hint": "逗号分隔的平台名（telegram/discord/qq_official），仅列出的平台进入受限模式。请在 WebUI 或配置文件中维护"
+    },
+    "multi_protocol_ban_enabled": {
+        "description": "受限模式违规自动禁言",
+        "type": "bool",
+        "default": false,
+        "hint": "受限平台（Telegram/Discord）文本命中违规时，除撤回外在执行禁言（时长取 moderation_ban_duration）。默认关闭：跨平台规则判定依赖本地关键词，置信度低于 QQ 全量审核，先仅撤回记录避免误伤"
     }
+
 }

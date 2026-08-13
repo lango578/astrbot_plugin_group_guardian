@@ -2117,6 +2117,114 @@ class ModerationMixin(HashAuditMixin, LocalOCRMixin, VideoAuditMixin, ImageAudit
 
     # ===== 拆分出的子方法 =====
 
+    async def _handle_message_limited(self, event: AstrMessageEvent, platform: str):
+        """受限模式（多协议适配）：非 AIOCQHTTP 平台的文本关键词审核。
+
+        支持：白黑名单过滤 + 群角色豁免 + 文本规则匹配（脏话/广告）+ 撤回 +
+        可选禁言 + 违规记录。群管操作（撤回/禁言/踢人/查询角色）由
+        PlatformOpsMixin 平台路由实现（Telegram/Discord）。图片/视频/转发/
+        OCR/LLM/任免管理员依赖 OneBot 特有数据结构，受限模式不启用。
+        """
+        group_id = self._get_group_id(event)
+        if not group_id:
+            return
+        user_id = self._try_get_sender_id(event)
+        if not user_id:
+            return
+        try:
+            user_name = str(event.get_sender_name() or "")
+        except Exception:
+            user_name = ""
+        # 通用前检：名单 / 总开关 / 免责声明（不依赖 OneBot 事件结构）
+        if self._user_white_set and user_id in self._user_white_set:
+            return
+        if self._group_black_set and group_id in self._group_black_set:
+            return
+        if self._group_white_set and group_id not in self._group_white_set:
+            return
+        if not self._cfg("enabled", True, group_id=group_id):
+            return
+        if not self.config.get("disclaimer_agreed", False):
+            return
+        # 群主/群管理员/插件全局管理员消息不审核。多协议下 _is_admin 经平台路由
+        # 查询 Telegram/Discord 群角色（member/admin/owner），与 QQ 全量模式一致，
+        # 使按角色分权限在受限平台同样生效。
+        if await self._is_admin(event):
+            return
+        if self._user_black_set and user_id in self._user_black_set:
+            return
+        try:
+            text = event.message_str or ""
+        except Exception:
+            text = ""
+        if not text.strip():
+            return
+        hit_types = {}
+        if self._cfg("scan_swear", True, group_id=group_id) and getattr(self, "_swear_matcher", None) is not None:
+            try:
+                if self._swear_matcher.is_match(text):
+                    hit_types["swear"] = True
+            except Exception as e:
+                logger.debug(f"[GroupMgr] 受限模式脏话匹配失败: {e}")
+        if self._cfg("scan_ad", True, group_id=group_id):
+            try:
+                if self._is_ad_pattern(text):
+                    hit_types["ad"] = True
+            except Exception as e:
+                logger.debug(f"[GroupMgr] 受限模式广告匹配失败: {e}")
+        if not hit_types:
+            return
+        # 统一违规记录（进 SQLite，可在 WebUI 查看）
+        try:
+            reason = "多协议受限模式命中: " + "/".join(sorted(hit_types.keys()))
+            self._log_moderation(group_id, user_id, user_name, text[:200], "撤回", reason)
+        except Exception as e:
+            logger.debug(f"[GroupMgr] 受限模式记录违规失败: {e}")
+        # 尽力撤回：多协议下经 OneBotMixin._recall_msg 平台路由完成（Telegram
+        # delete_message / Discord 频道删除），失败仅记录不影响主流程。
+        try:
+            mid = str(getattr(event, "message_id", "") or "")
+            if not mid:
+                mid = str(getattr(getattr(event, "message_obj", None), "message_id", "") or "")
+        except Exception:
+            mid = ""
+        if mid:
+            await self._limited_recall(event, platform, mid)
+        # 可选禁言（multi_protocol_ban_enabled）：Telegram 临时 ban / Discord
+        # timeout 由平台路由实现。默认关闭，仅撤回记录，避免跨平台误伤。
+        ban_applied = False
+        if self._cfg("multi_protocol_ban_enabled", False, group_id=group_id):
+            ban_duration = self._cfg_int("moderation_ban_duration", 1800, group_id=group_id)
+            try:
+                muted = await self._mute_member(event, ban_duration)
+                if muted:
+                    ban_applied = True
+                    self._mark_moderation_penalty(group_id, user_id, ban_duration)
+                    self._schedule_unban(group_id, user_id, ban_duration)
+            except Exception as e:
+                logger.debug(f"[GroupMgr] 受限模式禁言失败: {e}")
+        # 群内提示（如开启）
+        if self._cfg("auto_moderate_notice", True, group_id=group_id):
+            label = "、".join(
+                {"swear": "脏话", "ad": "广告"}.get(k, k) for k in sorted(hit_types.keys())
+            )
+            action_desc = "已撤回" if not ban_applied else "已撤回并禁言"
+            yield event.plain_result(f"检测到疑似{label}内容，{action_desc}")
+
+    async def _limited_recall(self, event: AstrMessageEvent, platform: str, mid: str) -> bool:
+        """受限模式尽力撤回：经 OneBotMixin._recall_msg 平台路由完成（Telegram
+        delete_message / Discord 频道删除），失败仅记录不影响主流程。"""
+        try:
+            result = await self._recall_msg(event, mid)
+            if result is True:
+                logger.info(f"[GroupMgr] 受限模式[{platform}] 已撤回消息 {mid}")
+                return True
+            logger.debug(f"[GroupMgr] 受限模式[{platform}] 撤回未生效(消息 {mid})")
+            return False
+        except Exception as e:
+            logger.debug(f"[GroupMgr] 受限模式[{platform}] 撤回失败: {e}")
+            return False
+
     def _pre_check_message(self, event: AiocqhttpMessageEvent, group_id: str, user_id: str) -> bool:
         if user_id and self._user_white_set and user_id in self._user_white_set:
             return True

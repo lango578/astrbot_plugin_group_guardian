@@ -1,5 +1,27 @@
 # Changelog
 
+## v2.12.0 - 2026-08-13
+
+### 新增：按角色分权限完善 + 多协议适配升级（Telegram/Discord 群管操作）
+
+**按角色分权限（在 QQ 全量基础上完善，并跨平台生效）**
+
+- 新增 `role_ban_require` 配置：`/禁言` `/解禁` 指令的发起者最低角色独立可配（admin/owner/plugin_admin），与已有的 `role_high_require`（高危操作）、`role_kick_require`（踢人）共同构成三级角色分级；
+- 「按角色分权限」跨平台生效：`_get_member_role` 增加平台路由，Telegram/Discord 受限模式下同样能查询群角色（member/admin/owner），群主/群管理员审核豁免与 `role_*_require` 分级在受限平台与 QQ 行为一致。
+
+**多协议适配升级（`platform_ops.py` 新增，受限模式从"仅文本关键词"升级为"文本关键词 + 群管操作"）**
+
+- 新增 `platform_ops.py`（`PlatformOpsMixin`）：Telegram / Discord 群管操作平台路由，全部 **duck typing** 实现（不强制 import python-telegram-bot / discord.py，纯 QQ 部署零影响），带统一超时与失败降级：
+  - Telegram：撤回 `delete_message`、禁言=临时 ban（`until_date` 到时自动解封）、解禁 `unban_chat_member`、踢人=ban+unban、角色 `get_chat_member.status`（creator/administrator）；
+  - Discord：撤回（频道 `fetch_message` + `delete`）、禁言=timeout、解禁=取消 timeout、踢人 `member.kick`、角色（群主 / `guild_permissions.administrator`）；
+- `onebot.py` 群管方法（`_recall_msg` / `_kick_member` / `_mute_member` / `_unban_member` / `_get_member_role`）非 AIOCQHTTP 平台时自动委托平台路由，QQ 全量行为零变化；
+- 受限模式升级（`_handle_message_limited`）：命中违规后撤回走平台路由（此前 `call_action` 对 Telegram/Discord 无效）；新增 `multi_protocol_ban_enabled`（默认关闭）可开启违规自动禁言；群主/群管理员按角色豁免；
+- `platforms.py` 能力表更新：telegram/discord 的 `recall/ban/kick` 标记为可用；`metadata.yaml` 的 `support_platforms` 加入 `telegram`、`discord`。
+
+### 兼容性说明
+
+- 默认行为不变：`multi_protocol_enabled` 默认关闭，纯 QQ 部署不受影响；开启后 Telegram/Discord 受限模式默认仅"撤回+记录"，禁言需显式开启 `multi_protocol_ban_enabled`。
+
 ## v2.11.0 - 2026-08-13
 
 ### 新增：多广告识别引擎（Umi-OCR / 第三方云API / 本地RapidOCR，不再默认智谱）
