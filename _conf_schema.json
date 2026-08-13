@@ -941,16 +941,46 @@
         "default": 8765,
         "hint": "独立后台监听的端口，范围 1-65535，默认 8765。请确保该端口未被占用且在防火墙放行"
     },
+    "ocr_engine": {
+        "description": "广告识别引擎",
+        "type": "string",
+        "default": "local",
+        "hint": "local=本地RapidOCR（默认，模型按需下载，开启后自动安装）；umi=Umi-OCR本地HTTP服务（默认127.0.0.1:1224）；cloud=第三方云广告检测API（如阿里云）；llm=云端视觉模型（可选，不再默认）；auto=本地优先回退云端视觉。可按群覆盖"
+    },
+    "local_ocr_auto_install": {
+        "description": "本地OCR自动安装（下载模型）",
+        "type": "bool",
+        "default": true,
+        "hint": "开启 local 引擎且本地未安装 RapidOCR 时，自动 pip install rapidocr_onnxruntime（含模型约30MB）；关闭后不卸载模型，仅停止自动安装"
+    },
+    "umi_ocr_url": {
+        "description": "Umi-OCR 服务地址",
+        "type": "string",
+        "default": "http://127.0.0.1:1224",
+        "hint": "Umi-OCR（Rapid引擎版）的HTTP服务地址。需自行安装并运行 Umi-OCR，插件通过其 /api/ocr 接口识别图片/视频帧文字，专门为广告检测服务"
+    },
+    "cloud_audit_url": {
+        "description": "第三方云广告检测API地址",
+        "type": "string",
+        "default": "",
+        "hint": "如阿里云内容安全等第三方图片广告检测API（通用JSON协议：POST {image_base64} → {is_ad,score,reason}）。留空则禁用云检测。可按群覆盖"
+    },
+    "cloud_audit_api_key": {
+        "description": "云广告检测API Key",
+        "type": "string",
+        "default": "",
+        "hint": "调用云广告检测API时的认证Key（Authorization: Bearer）。留空则不携带"
+    },
+    "cloud_audit_threshold": {
+        "description": "云广告检测判定阈值",
+        "type": "float",
+        "default": 0.8,
+        "hint": "云API返回的广告分数达到该阈值即判定为广告（0-1），越大越严格"
+    },
     "ad_backend_token": {
         "description": "独立后台访问令牌",
         "type": "string",
         "default": "",
         "hint": "访问后台需携带的令牌（URL 加 ?token=xxx 或请求头 X-Token）。留空则无需鉴权，仅建议在内网使用"
-    },
-    "ocr_engine": {
-        "description": "文字识别引擎",
-        "type": "string",
-        "default": "llm",
-        "hint": "llm=云端视觉模型（智谱GLM-4V等，需配置ocr_provider_id）；local=本地RapidOCR（免费离线，需 pip install rapidocr_onnxruntime，低配2核2G友好）；auto=本地优先，本地识别不到再回退云端。可按群覆盖"
     }
 }

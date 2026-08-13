@@ -309,20 +309,21 @@ class ImageAuditMixin:
                                 )
                                 self._cache_image_evidence(image_url, "ocr", result)
                                 return result
-                # 本地 OCR 引擎（rapidocr_onnxruntime）：低配/离线场景，不依赖云端视觉 API
-                engine = self._cfg_str(
-                    "ocr_engine", "llm", group_id=group_id
-                ).strip().lower()
-                if engine in ("local", "auto"):
+                # 非 LLM 识别引擎（local/umi/cloud），或 auto 的本地优先
+                engine = self._ad_engine(group_id)
+                if engine in ("local", "umi", "cloud", "auto"):
                     if data is None:
                         data = await self._download_bytes(image_url)
-                    local_text = await self._local_ocr_text(data)
-                    if local_text:
-                        result = "[本地OCR] " + local_text
+                    media_text = await self._detect_media_text(data, group_id)
+                    if media_text:
+                        result = media_text
+                        if engine == "cloud":
+                            result = "[云API] " + media_text
                         self._cache_image_evidence(image_url, "ocr", result)
                         return result
-                    if engine == "local":
+                    if engine in ("local", "umi", "cloud"):
                         return ""
+                # llm 引擎，或 auto 本地无结果时回退 LLM 视觉
                 is_gif = self._is_gif_url(image_url)
                 is_sticker = self._is_sticker_image(image_url)
                 ocr_text = await self._call_llm_ocr(

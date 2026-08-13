@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.11.0 - 2026-08-13
+
+### 新增：多广告识别引擎（Umi-OCR / 第三方云API / 本地RapidOCR，不再默认智谱）
+
+- **识别引擎可配置**（`ocr_engine`，默认改为 `local`）：
+  - `local`（默认）：本地 RapidOCR，模型**不随插件打包**——首次启用时自动 `pip install rapidocr_onnxruntime`（含模型约30MB），关闭引擎**不卸载**模型；
+  - `umi`：接入 **Umi-OCR（Rapid 引擎版）** 本地 HTTP 服务（默认 `http://127.0.0.1:1224`），通过 `/api/ocr` 识别图片/视频帧文字，专门为广告检测服务；
+  - `cloud`：接入**第三方云广告检测 API**（如阿里云内容安全，通用 JSON 协议 `{image_base64}→{is_ad,score,reason}`），可配 `cloud_audit_url` / `cloud_audit_api_key` / `cloud_audit_threshold`；
+  - `llm`：云端视觉模型（智谱等）保留为**可选**，不再默认使用；
+  - `auto`：本地优先，识别不到再回退云端视觉。
+- `local_ocr.py` 重构：新增 `_umi_ocr_text`（Umi-OCR HTTP）、`_cloud_audit_image`（云API）、`_ensure_local_ocr`（模型按需安装）、`_detect_media_text`（统一入口）、`_ad_engine`（引擎选择）。
+- 图片（`_ocr_images`）与视频帧（`_recognize_video_frames`）均按引擎识别；云 API 命中返回 `[云API] 广告：xxx` 标记。
+- 新配置：`local_ocr_auto_install` / `umi_ocr_url` / `cloud_audit_url` / `cloud_audit_api_key` / `cloud_audit_threshold`。
+- `requirements.txt` 移除 `rapidocr_onnxruntime` 硬依赖（模型不打包，按需安装）。
+
 ## v2.10.1 - 2026-08-13
 
 ### 新增：本地 RapidOCR 识别引擎（低配/离线方案）
