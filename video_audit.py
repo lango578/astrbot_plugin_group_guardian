@@ -666,6 +666,21 @@ class VideoAuditMixin:
                     pscore = self._quick_precheck_frame(frame_bytes)
                     if pscore < precheck_threshold:
                         return ""
+                # 本地 OCR 引擎（rapidocr_onnxruntime）：低配/离线，不依赖云端视觉 API
+                engine = self._cfg_str("ocr_engine", "llm", group_id=group_id).strip().lower()
+                if engine in ("local", "auto"):
+                    local_text = await self._local_ocr_text(frame_bytes)
+                    if local_text:
+                        local_lines = [local_text]
+                        local_decoder = _probe_qr_decoder()
+                        if local_decoder:
+                            local_qr = await self._run_qr_decoder(frame_bytes, local_decoder) or []
+                            local_clean = [str(v).strip() for v in local_qr if str(v).strip()]
+                            if local_clean:
+                                local_lines.append("二维码: " + " | ".join(local_clean))
+                        return f"[视频第{index}帧] [本地OCR] " + "\n".join(local_lines)
+                    if engine == "local":
+                        return ""
                 data_url = self._frame_to_data_url(frame_bytes)
                 ocr_text = await self._call_llm_ocr(data_url, group_id=group_id)
                 ocr_text = str(ocr_text or "").strip()

@@ -289,6 +289,7 @@ class ImageAuditMixin:
 
         async def recognize(image_url: str) -> str:
             try:
+                data = None
                 # 感知哈希广告黑名单快速命中（可选）：命中直接标记并跳过视觉 API 调用，
                 # 并缓存哈希供广告确认后学习。
                 if self._cfg("ad_hash_blacklist_enabled", False, group_id=group_id):
@@ -308,6 +309,20 @@ class ImageAuditMixin:
                                 )
                                 self._cache_image_evidence(image_url, "ocr", result)
                                 return result
+                # 本地 OCR 引擎（rapidocr_onnxruntime）：低配/离线场景，不依赖云端视觉 API
+                engine = self._cfg_str(
+                    "ocr_engine", "llm", group_id=group_id
+                ).strip().lower()
+                if engine in ("local", "auto"):
+                    if data is None:
+                        data = await self._download_bytes(image_url)
+                    local_text = await self._local_ocr_text(data)
+                    if local_text:
+                        result = "[本地OCR] " + local_text
+                        self._cache_image_evidence(image_url, "ocr", result)
+                        return result
+                    if engine == "local":
+                        return ""
                 is_gif = self._is_gif_url(image_url)
                 is_sticker = self._is_sticker_image(image_url)
                 ocr_text = await self._call_llm_ocr(

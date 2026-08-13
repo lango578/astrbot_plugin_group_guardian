@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.10.1 - 2026-08-13
+
+### 新增：本地 RapidOCR 识别引擎（低配/离线方案）
+
+接入 `rapidocr_onnxruntime` 本地 OCR 模型（ONNX 版 ~30MB，常驻 ~300MB），2 核 2G 服务器可跑，不依赖智谱等云端视觉 API：
+
+- **`local_ocr.py`（`LocalOCRMixin`）**：RapidOCR 单例懒加载、全局复用（避免冷启动），同步调用放入线程池不阻塞事件循环；
+- 图片（`_ocr_images`）与视频帧（`_recognize_video_frames`）均可使用本地 OCR 识别广告文字；
+- 新配置 `ocr_engine`：`llm`（默认，云端视觉）/ `local`（本地 RapidOCR）/ `auto`（本地优先，识别不到回退云端），可按群覆盖；
+- `requirements.txt` 加入可选依赖 `rapidocr_onnxruntime`（缺失时自动回退云端引擎）；
+- 本地二维码仍用 OpenCV 解码（免费），识别文字同样进入统一审核流程。
+
 ## v2.10.0 - 2026-08-13
 
 ### 新增：独立 Web 管理后台（服务端浏览器直接访问）

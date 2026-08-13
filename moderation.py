@@ -27,6 +27,7 @@ try:
     )
     from .video_audit import VideoAuditMixin
     from .hash_audit import HashAuditMixin
+    from .local_ocr import LocalOCRMixin
 except ImportError:  # 独立加载 moderation.py 的单元测试兼容路径
     from lexicon_migration import LOW_CONFIDENCE_LITERALS as LOW_CONFIDENCE_SWEAR_LITERALS
     from image_audit import ImageAuditMixin
@@ -38,6 +39,7 @@ except ImportError:  # 独立加载 moderation.py 的单元测试兼容路径
     )
     from video_audit import VideoAuditMixin
     from hash_audit import HashAuditMixin
+    from local_ocr import LocalOCRMixin
 
 
 class _LLMErrorBag:
@@ -56,7 +58,7 @@ class _LLMErrorBag:
         return "; ".join(self.errors[:limit]) if self.errors else "无任何可用Provider"
 
 
-class ModerationMixin(HashAuditMixin, VideoAuditMixin, ImageAuditMixin, ModerationContextMixin):
+class ModerationMixin(HashAuditMixin, LocalOCRMixin, VideoAuditMixin, ImageAuditMixin, ModerationContextMixin):
     """审核主流程。由 _handle_message 驱动（注册在 main.py）。
 
     按以下顺序执行:

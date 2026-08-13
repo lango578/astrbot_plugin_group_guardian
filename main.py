@@ -89,6 +89,7 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, CardMo
         self._init_image_audit_resources(llm_concurrency)
         self._init_video_audit_resources(llm_concurrency)
         self._init_hash_audit_resources()
+        self._init_local_ocr()
         # 防刷屏追踪数据结构
         self._init_anti_flood()
         # 自适应上下文学习：初始化按群缓冲/匹配器，并从 DB 载入已审批学习词

@@ -946,5 +946,11 @@
         "type": "string",
         "default": "",
         "hint": "访问后台需携带的令牌（URL 加 ?token=xxx 或请求头 X-Token）。留空则无需鉴权，仅建议在内网使用"
+    },
+    "ocr_engine": {
+        "description": "文字识别引擎",
+        "type": "string",
+        "default": "llm",
+        "hint": "llm=云端视觉模型（智谱GLM-4V等，需配置ocr_provider_id）；local=本地RapidOCR（免费离线，需 pip install rapidocr_onnxruntime，低配2核2G友好）；auto=本地优先，本地识别不到再回退云端。可按群覆盖"
     }
 }
