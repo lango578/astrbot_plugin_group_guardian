@@ -953,6 +953,12 @@
         "default": true,
         "hint": "开启 local 引擎且本地未安装 RapidOCR 时，自动 pip install rapidocr_onnxruntime（含模型约30MB）；关闭后不卸载模型，仅停止自动安装"
     },
+    "local_ocr_pip_mirror": {
+        "description": "本地OCR安装镜像源",
+        "type": "string",
+        "default": "https://pypi.tuna.tsinghua.edu.cn/simple",
+        "hint": "自动安装 RapidOCR 时使用的 pip 镜像源。国内/Docker 服务器建议用清华源（默认），官方 PyPI 连不上时更换为可用镜像或留空使用默认"
+    },
     "umi_ocr_url": {
         "description": "Umi-OCR 服务地址",
         "type": "string",

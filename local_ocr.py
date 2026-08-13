@@ -69,8 +69,19 @@ class LocalOCRMixin:
             for attempt in (1, 2):
                 try:
                     logger.info(f"[GroupMgr] [安装日志] 第{attempt}次执行: pip install rapidocr_onnxruntime")
+                    mirror = ""
+                    try:
+                        mirror = str(self.config.get(
+                            "local_ocr_pip_mirror",
+                            "https://pypi.tuna.tsinghua.edu.cn/simple",
+                        ) or "").strip()
+                    except Exception:
+                        mirror = ""
+                    install_cmd = [sys.executable, "-m", "pip", "install", "rapidocr_onnxruntime"]
+                    if mirror:
+                        install_cmd += ["-i", mirror]
                     proc = await asyncio.create_subprocess_exec(
-                        sys.executable, "-m", "pip", "install", "rapidocr_onnxruntime",
+                        *install_cmd,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.STDOUT,
                     )
