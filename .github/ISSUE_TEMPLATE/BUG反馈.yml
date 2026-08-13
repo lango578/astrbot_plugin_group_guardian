@@ -1,0 +1,96 @@
+name: 🪲 报告问题
+description: 报告QQ群智能守护者插件的错误或异常行为
+title: "[BUG] "
+labels: ["bug"]
+assignees: [zcj-ui]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请确认：插件已更新到最新版，问题不是 AstrBot 本体引起的，也请检查是否与已有 Issue 重复。
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 发生了什么
+      placeholder: "比如：防刷屏开关关闭后仍会禁言"
+    validations:
+      required: true
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: 插件版本
+      description: WebUI → 插件管理中查看
+      placeholder: "v2.2.2"
+    validations:
+      required: true
+
+  - type: input
+    id: astrbot-version
+    attributes:
+      label: AstrBot 版本
+      description: WebUI 底部或启动日志中查看
+      placeholder: "v4.x.x"
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 消息平台
+      options:
+        - QQ（NapCat / LLOneBot / go-cqhttp）
+        - QQ官方（qq_official）
+        - 企业微信
+        - 钉钉
+        - Telegram
+        - Discord
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 如何触发这个问题
+      placeholder: |
+        1. 打开插件设置，关闭防刷屏开关
+        2. 在群内连续发送多条消息
+        3. 观察是否仍被禁言
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志
+      description: 粘贴控制台中的完整错误输出（请勿截图）
+      render: shell
+
+  - type: textarea
+    id: config
+    attributes:
+      label: 相关配置（可选）
+      description: 与问题相关的设置片段
+      render: json
+
+  - type: markdown
+    attributes:
+      value: |
+        > 日志越完整，定位越快。
+
+  - type: checkboxes
+    id: willing-pr
+    attributes:
+      label: 是否愿意提交 PR
+      options:
+        - label: 如果可行，我愿意自己实现修复并提 PR

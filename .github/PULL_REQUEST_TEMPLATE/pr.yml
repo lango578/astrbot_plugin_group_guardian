@@ -1,0 +1,31 @@
+name: 提交 PR
+about: 向本仓库提交代码变更
+title: "[PR] "
+labels: []
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 变更说明
+      description: 简述这个 PR 做了什么
+      placeholder: "修复了防刷屏检测在白名单群不生效的问题"
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: 变更原因
+      description: 说明为什么需要这个改动，可关联 Issue 号
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 自查
+      options:
+        - label: 本地测试通过
+          required: true
+        - label: 无新增报错或警告
+          required: true
+        - label: 代码风格与现有代码一致
+          required: true

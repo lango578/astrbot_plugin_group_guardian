@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install pyahocorasick
+
+      - name: 语法检查 (py_compile)
+        run: |
+          for f in *.py; do
+            python -m py_compile "$f" || { echo "编译失败: $f"; exit 1; }
+          done
+
+      - name: JSON 格式校验
+        run: python -c "import json; json.load(open('_conf_schema.json','r',encoding='utf-8')); print('OK')"
+
+      - name: 单元测试
+        run: python -m unittest discover -s tests -p "test_*.py" -v
