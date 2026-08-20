@@ -61,8 +61,9 @@ class AdBackendMixin:
         try:
             today_start = self._today_start()
             blocked = passed = 0
-            img_blocked = 0
-            video_blocked = 0
+            today_blocked = 0
+            today_img = 0
+            today_video = 0
             user_hits = {}
             recent = []
             for log in list(self._moderation_logs):
@@ -74,10 +75,12 @@ class AdBackendMixin:
                 is_blocked = ("撤回" in action) or ("禁言" in action) or ("踢" in action)
                 if is_ad and is_blocked:
                     blocked += 1
-                    if "视频" in msg or "视频" in action:
-                        video_blocked += 1
-                    elif urls:
-                        img_blocked += 1
+                    if ts >= today_start:
+                        today_blocked += 1
+                        if "视频" in msg or "视频" in action:
+                            today_video += 1
+                        elif urls:
+                            today_img += 1
                     uid = str(log.get("user_id", ""))
                     if uid:
                         user_hits[uid] = user_hits.get(uid, 0) + 1
@@ -92,9 +95,10 @@ class AdBackendMixin:
             return jsonify({
                 "status": "success",
                 "data": {
-                    "today_blocked": blocked,
-                    "today_video_blocked": video_blocked,
-                    "today_image_blocked": img_blocked,
+                    "today_blocked": today_blocked,
+                    "total_blocked": blocked,
+                    "today_img": today_img,
+                    "today_video": today_video,
                     "total_logs": total_logs,
                     "recent": recent[:20],
                     "top_users": [{"user_id": k, "count": v} for k, v in top_users],
